@@ -14,10 +14,8 @@ header:
 
   15: 2^15=32768 can store 30720 seqID
   3: ack syn fin
-  10: packet size (header+payload) 1024
+  18 bit > 2B
 
-  28 bit => 4B
-
-Hence,
-  4B header
+  let's use 4B header
   1020B payload
+  (easier for the eye)

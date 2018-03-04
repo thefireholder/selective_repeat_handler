@@ -13,7 +13,7 @@ current work:
 
 actual code: 
        SR_server.c: server code
-       SR_client.c: client code (empty for now)
+       SR_client.c: client code
 
 
 other random files:

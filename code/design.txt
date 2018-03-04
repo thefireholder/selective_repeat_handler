@@ -1,0 +1,21 @@
+
+param:
+	./server < portnumber >
+	./client < server hostname > < server portnumber > < filename >
+
+default (constant from spec)
+- max packet size: 1024B
+- seq # max value: 30KB = 30720B
+- window size: 5120B
+- Retransmission timeout: 500ms
+
+header: 
+- contain seq#, ack, syn, fin
+
+  15: 2^15=32768 can store 30720 seqID
+  3: ack syn fin
+  18 bit > 2B
+
+  let's use 4B header
+  1020B payload
+  (easier for the eye)

@@ -29,7 +29,7 @@ int main(int argc, char * argv[])
   struct sockaddr_in clientA;
 
   //argument handler
-  if (argc < 2) reportError("argument failure: ./http_server portNumber", 1);
+  if (argc < 2) reportError("argument failure: ./server portNumber", 1);
   if (argc > 2) debug = 1;
   int port = atoi(argv[1]);
   if (debug) fprintf(stderr, "Server Port: %d\n", port);
@@ -69,7 +69,9 @@ int main(int argc, char * argv[])
     if(recvlen > 0) {
       if (debug) fprintf(stderr, "Message from client:\n");
       buffer[recvlen]=0;
-      printf("%s",buffer);
+      //printf("%s",buffer);
+      //printf("okay %d msg is here: [%s] \n", recvlen, buffer);
+      printf("%s\n\n", buffer);
     }
   }
 }

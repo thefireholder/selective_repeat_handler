@@ -1,0 +1,18 @@
+
+progress:
+	design.txt: general idea of hwo this SR UDP protocol would be designed
+		    + header layout
+	Makefile: gnerates file + clean it
+
+current work:
+	server UDP protocol: almost complete 
+	
+
+actual code: 
+       SR_server.c: server code
+       SR_client.c: client code (empty for now)
+
+
+other random files:
+      ref_server.c: some UDP server code I found online
+      	    https://www.cs.rutgers.edu/~pxk/417/notes/sockets/udp.html

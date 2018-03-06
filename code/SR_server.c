@@ -6,11 +6,26 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 
 #define BUFSIZE 2048
+#define HSIZE 4 //header size
+#define ACK 1
+#define SYN 2
+#define FIN 4
+#define FOF 8
 
 //show greater detail if debug flag is on
 int debug = 0; 
+
+union header
+{
+  char bytes[4];
+  struct fields {
+    short seq;
+    short flags_size; //flag(4bit)+size<<4(10bit)                                           
+  } fields;
+};
 
 int reportError(char* msg, int errorCode)
 //report error according to msg and exit with errorcode
@@ -20,6 +35,22 @@ int reportError(char* msg, int errorCode)
 {
   fprintf(stderr,"Error: %s\n", msg);
   exit(errorCode);
+}
+
+int parseMsg(char* msg, char*payload, int* flags, int* seq)
+//given headed msg, parse msg (find size from header)
+//return payload size (if only header is sent, return 0)
+{
+  union header h; int size;
+  memcpy(h.bytes, msg, HSIZE);
+
+  unsigned int flags_size = h.fields.flags_size;
+  size = flags_size >> 4;
+  *flags = flags_size & 15;
+  *seq = h.fields.seq;
+  memcpy(payload, msg + HSIZE, size);
+
+  return size;
 }
 
 int main(int argc, char * argv[])
@@ -51,27 +82,32 @@ int main(int argc, char * argv[])
   while(1) 
   {
     //receive client msg
-    char buffer[BUFSIZE]; socklen_t clientA_len; //stores clientA length
-
-    if (debug) fprintf(stderr, "waiting for msg\n");
-    int recvlen = recvfrom(sockfd, buffer, BUFSIZE, 0
-			   ,(struct sockaddr *) &clientA, &clientA_len);
+    char msg[BUFSIZE]; char payload[BUFSIZE-HSIZE]; int flags; int seq; 
+    socklen_t clientA_len; //stores clientA length
+    if (debug) fprintf(stderr, ">waiting for msg\n");
+    int n = recvfrom(sockfd, msg, BUFSIZE, 0,(struct sockaddr *) &clientA, &clientA_len);
     
-    if (debug) { //printing client ip & port 
+    //print client ip & port 
+    if (debug) { 
       unsigned char *ip = (unsigned char *)&(clientA.sin_addr.s_addr); 
       fprintf(stderr, "Found client %d.%d.%d.%d:%d\n"
 	      ,clientA.sin_addr.s_addr, ip[1], ip[2], ip[3]
 	      ,ntohs(((struct sockaddr_in)clientA).sin_port));
     }
 
-    //read
-    if(recvlen >= 2048) reportError("Buffer overflow", 1);
-    if(recvlen > 0) {
+    //check for error & parse msg
+    if(n >= BUFSIZE) reportError("Buffer overflow", 1);
+    if(n < 0) reportError("recvfrom error", 2);
+    n = parseMsg(msg, payload, &flags, &seq);
+
+
+    //read paylaod
+    if(n > 0) {
       if (debug) fprintf(stderr, "Message from client:\n");
-      buffer[recvlen]=0;
+      msg[n]=0;
       //printf("%s",buffer);
       //printf("okay %d msg is here: [%s] \n", recvlen, buffer);
-      printf("%s\n\n", buffer);
+      printf("%s\n\n", payload);
     }
   }
 }

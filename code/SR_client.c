@@ -81,7 +81,7 @@ int parseMsg(char* msg, char*payload, int* flags, int* seq)
 
 int main(int argc, char *argv[])
 {
-  struct sockaddr_in serv_addr;
+  struct sockaddr_in serverA;
 
   //argument check
   if (argc < 4) reportError(ARGMSG,1);
@@ -96,11 +96,11 @@ int main(int argc, char *argv[])
   int sockfd = socket(PF_INET, SOCK_DGRAM, 0);
   if (sockfd == -1) reportError("socket creation failed", 2);
 
-  //initialize serv_addr
-  bzero((char *) &serv_addr, sizeof(serv_addr));
-  serv_addr.sin_family = AF_INET;
-  bcopy((char *)host->h_addr, (char *)&serv_addr.sin_addr.s_addr, host->h_length);
-  serv_addr.sin_port = htons(port);
+  //initialize serverA
+  bzero((char *) &serverA, sizeof(serverA));
+  serverA.sin_family = AF_INET;
+  bcopy((char *)host->h_addr, (char *)&serverA.sin_addr.s_addr, host->h_length);
+  serverA.sin_port = htons(port);
 
   //UDP needs no connection, transmit msg from here
   char msg[BUFSIZE-4];
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
   //send request msg (format & send until make)
   int n = sprintf(msg, "%s:%s","REQUEST", argv[3]); //REQUEST:fileName
   n = formatMsg(fmsg, msg, n, 0, SYN+FIN); //fmsg = header(4)+payload(msg)
-  while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serv_addr,sizeof(serv_addr))<0);
+  while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
 
   //receive msg & send ACK
   char payload[BUFSIZE-HSIZE]; int flags; int seq; 
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
   while(1) {
     //receive msg
     if (debug) fprintf(stderr, ">waiting for msg\n");
-    int n = recvfrom(sockfd, msg, BUFSIZE, 0,(struct sockaddr *) &serv_addr, &servA_len);
+    int n = recvfrom(sockfd, msg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
 
     //check for error & parse msg
     if(n >= BUFSIZE) reportError("Buffer overflow", 1);

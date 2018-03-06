@@ -19,3 +19,5 @@ actual code:
 other random files:
       ref_server.c: some UDP server code I found online
       	    https://www.cs.rutgers.edu/~pxk/417/notes/sockets/udp.html
+      ref2_server.c, ref2_client.c: also another (more) useful ref:
+      	    https://www.programminglogic.com/sockets-programming-in-c-using-udp-datagrams/

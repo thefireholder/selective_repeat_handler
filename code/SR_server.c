@@ -22,8 +22,8 @@ union header
 {
   char bytes[4];
   struct fields {
-    short seq;
-    short flags_size; //flag(4bit)+size<<4(10bit)                                           
+    short seq;        //seq number
+    short flags_size; //flag (4bit) + size of payload & header (10bit) << 4                                           
   } fields;
 };
 
@@ -45,7 +45,7 @@ int parseMsg(char* msg, char*payload, int* flags, int* seq)
   memcpy(h.bytes, msg, HSIZE);
 
   unsigned int flags_size = h.fields.flags_size;
-  size = flags_size >> 4;
+  size = (flags_size >> 4) - HSIZE; //payload size
   *flags = flags_size & 15;
   *seq = h.fields.seq;
   memcpy(payload, msg + HSIZE, size);
@@ -57,7 +57,7 @@ int main(int argc, char * argv[])
 {
   //address structures
   struct sockaddr_in modelA;
-  struct sockaddr_in clientA;
+  struct sockaddr_storage clientA; //note I didn't use sockaddr_in!
 
   //argument handler
   if (argc < 2) reportError("argument failure: ./server portNumber", 1);
@@ -86,7 +86,9 @@ int main(int argc, char * argv[])
     socklen_t clientA_len; //stores clientA length
     if (debug) fprintf(stderr, ">waiting for msg\n");
     int n = recvfrom(sockfd, msg, BUFSIZE, 0,(struct sockaddr *) &clientA, &clientA_len);
+
     
+    /*
     //print client ip & port 
     if (debug) { 
       unsigned char *ip = (unsigned char *)&(clientA.sin_addr.s_addr); 
@@ -94,6 +96,7 @@ int main(int argc, char * argv[])
 	      ,clientA.sin_addr.s_addr, ip[1], ip[2], ip[3]
 	      ,ntohs(((struct sockaddr_in)clientA).sin_port));
     }
+    */
 
     //check for error & parse msg
     if(n >= BUFSIZE) reportError("Buffer overflow", 1);
@@ -104,12 +107,19 @@ int main(int argc, char * argv[])
     //read paylaod
     if(n > 0) {
       if (debug) fprintf(stderr, "Message from client:\n");
-      msg[n]=0;
+      payload[n]=0;
       //printf("%s",buffer);
       //printf("okay %d msg is here: [%s] \n", recvlen, buffer);
-      printf("%s\n\n", payload);
+      printf("%d, %s\n\n", n, payload);
     }
+
+    //send msg
+    if (debug) fprintf(stderr,"sending msg: %s\n", payload);
+    while(sendto(sockfd, msg, n+4, 0,(struct sockaddr *)&clientA, clientA_len)<0);
+    if (debug) fprintf(stderr,"sent\n");
   }
+
+
 }
 
 

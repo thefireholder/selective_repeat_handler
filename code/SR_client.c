@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <errno.h>
+
 #define BUFSIZE 1024
 #define HSIZE 4 //header size
 #define ARGMSG "argument failure: ./client hostname port# file"
@@ -99,8 +101,9 @@ int main(int argc, char *argv[])
   //timebomb
   struct timeval tv;
   tv.tv_sec = 2; tv.tv_usec = 0;
-  setsockopt(timebomb, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
-
+  int soerror = setsockopt(timebomb, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+  
+  if (soerror == -1) reportError("setsockopt failed", 2);
   if (sockfd == -1) reportError("socket creation failed", 2);
   if (timebomb == -1) reportError("socket creation failed", 2);
 
@@ -120,11 +123,9 @@ int main(int argc, char *argv[])
   do {
     n = sprintf(payload, "%s", argv[3]); //REQUEST:fileName
     n = formatMsg(fmsg, payload, n, 0, ACK); //fmsg = header(4)+payload(msg)
-    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
+    while(sendto(timebomb, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
     if (debug) fprintf(stderr, ">request sent\n");
-    sleep(2);
-    n = recvfrom(sockfd, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
-    //    if(n<0) sleep(2);
+    n = recvfrom(timebomb, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
     if (debug) fprintf(stderr, ">received %d\n", n);
   }
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & ACK)); //file mismatch or no ack
@@ -138,8 +139,11 @@ int main(int argc, char *argv[])
   do {
     printf("Sending packet SYN");
     n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
-    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
-    n = recvfrom(timebomb, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
+    while(sendto(timebomb, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
+    n = recvfrom(timebomb, fmsg, BUFSIZE, MSG_WAITALL,(struct sockaddr *) &serverA, &servA_len);
+    if (errno == EAGAIN) fprintf(stderr, "EAGAIN  %d\n", n);
+    else if (errno == EWOULDBLOCK) fprintf(stderr, "EABLOCK  %d\n", n);
+    else fprintf(stderr, "NONE  %d\n", n);
     if (debug) fprintf(stderr, ">received %d\n", n);
   }
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); // received msg

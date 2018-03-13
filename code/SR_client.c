@@ -70,7 +70,7 @@ int parseMsg(char* msg, char*payload, int* flags, int* seq)
   memcpy(h.bytes, msg, HSIZE);
 
   unsigned int flags_size = h.fields.flags_size;
-  size = (flags_size >> 4) - HSIZE; //payload size                                               
+  size = (flags_size >> 4) - HSIZE; //payload size
   *flags = flags_size & 15;
   *seq = h.fields.seq;
   memcpy(payload, msg + HSIZE, size);
@@ -94,7 +94,15 @@ int main(int argc, char *argv[])
 
   //initialize socket
   int sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+  int timebomb = socket(PF_INET, SOCK_DGRAM, 0);
+
+  //timebomb
+  struct timeval tv;
+  tv.tv_sec = 2; tv.tv_usec = 0;
+  setsockopt(timebomb, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
   if (sockfd == -1) reportError("socket creation failed", 2);
+  if (timebomb == -1) reportError("socket creation failed", 2);
 
   //initialize serverA
   bzero((char *) &serverA, sizeof(serverA));
@@ -106,42 +114,48 @@ int main(int argc, char *argv[])
   socklen_t servA_len; //stores clientA length
   char payload[BUFSIZE-HSIZE]; int flags; int seq; int n; //size
   char fmsg[BUFSIZE];
+  FILE *fp;
 
   //send request msg (format & send until make)
   do {
     n = sprintf(payload, "%s", argv[3]); //REQUEST:fileName
     n = formatMsg(fmsg, payload, n, 0, ACK); //fmsg = header(4)+payload(msg)
-    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
+    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
     if (debug) fprintf(stderr, ">request sent\n");
     sleep(2);
     n = recvfrom(sockfd, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
+    //    if(n<0) sleep(2);
     if (debug) fprintf(stderr, ">received %d\n", n);
   }
-  while (n != parseMsg(fmsg, payload, &flags, &seq) || !(flags & ACK)); //file mismatch or no ack
+  while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & ACK)); //file mismatch or no ack
   
   //received response (404)
   if(flags & FOF) {printf("404 not found error\n"); exit(0);}
+  else fp = fopen(argv[3],"wr+");
+  
 
   //send sync msg
   do {
+    printf("Sending packet SYN");
     n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
-    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
-    if (debug) fprintf(stderr, ">request sent\n");
-    sleep(2);
-    n = recvfrom(sockfd, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
+    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
+    n = recvfrom(timebomb, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
     if (debug) fprintf(stderr, ">received %d\n", n);
   }
-  while (n != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); //file mismatch or no ack
+  while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); // received msg
+
+  //if syn, n == 0
+  //else need to recv actual msg
 
   //receive msg & send ACK
   while(1) {
     //receive msg
     if (debug) fprintf(stderr, ">waiting for msg\n");
-    int n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
+    if (flags & SYN) n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
 
     //check for error & parse msg
-    if(n >= BUFSIZE) reportError("Buffer overflow", 1);
-    if(n < 0) reportError("recvfrom error", 2);
+    if(n > BUFSIZE) reportError("Buffer overflow", 1);
+    if(n < HSIZE) reportError("recvfrom error (less than 4 byte)", 2);
     n = parseMsg(fmsg, payload, &flags, &seq);
 
     //read paylaod                                                                             
@@ -152,7 +166,9 @@ int main(int argc, char *argv[])
     }
 
     //send ack
-
+    printf("Sending packet %d",seq);
+    n = formatMsg(fmsg, payload, n, seq, ACK);
+    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
   }
 
   //end terminal

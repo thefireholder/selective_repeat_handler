@@ -129,8 +129,10 @@ int main(int argc, char * argv[])
   union header ACK_filename;
   if (access(payload, F_OK) != -1){
     ACK_filename.fields.flags_size = ACK;
+    fprintf(stderr, "has file\n");
   } else {
     ACK_filename.fields.flags_size = FOF;
+    fprintf(stderr, "no file\n");
   }
 
   // set up timeout_sockfd
@@ -148,7 +150,6 @@ int main(int argc, char * argv[])
   // setsockopt(timeout_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
   //
 
-  fprintf(stderr, "%lu\n", sizeof(union header));
   while(1) {
     int sent;
     fprintf(stderr, "yo\n");
@@ -156,8 +157,8 @@ int main(int argc, char * argv[])
       //sfprintf(stderr, "%d\n", sent);
     }
     sleep(2 * RTO);
-    int rcved = recvfrom(sockfd, msg, sizeof(union header), 0, (struct sockaddr *)&clientA, &clientA_len);
-    
+    int rcved = recvfrom(sockfd, msg, sizeof(union header), MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
+
     if (rcved < HSIZE) {
       fprintf(stderr, "%d\n", rcved);
       continue;
@@ -169,9 +170,11 @@ int main(int argc, char * argv[])
       break;
     }
   }
+  // end of filename transfer
+
   
   // make SYNAck
-
+  
 
 
 }

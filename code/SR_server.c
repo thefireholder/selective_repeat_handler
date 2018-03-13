@@ -18,6 +18,7 @@
 #define FOF 8
 #define PACKETSIZE 1024
 #define RTO 1
+#define WND 5120
 
 //show greater detail if debug flag is on
 int debug = 0; 
@@ -149,6 +150,7 @@ int main(int argc, char * argv[])
     fprintf(stderr, "has file\n");
   } else {
     formatMsg(ACK_filename, "", 0, 0, FOF);
+    // TODO: 404 = send 404 ACK and then go "expect close" method
     fprintf(stderr, "no file\n");
   }
 
@@ -170,10 +172,41 @@ int main(int argc, char * argv[])
   while(1) {
     int sent;
     fprintf(stderr, "yo\n");
-    while((sent = sendto(sockfd, ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) <= sizeof(union header)) {
-      //sfprintf(stderr, "%d\n", sent);
+    while((sent = sendto(sockfd, ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
+      fprintf(stderr, "sent: %d\n", sent);
     }
-    sleep(2 * RTO);
+    //sleep(2 * RTO);
+
+    fprintf(stderr, "rcvfrom SYN\n");
+    int rcved = recvfrom(sockfd, msg, sizeof(union header), MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
+    fprintf(stderr, "rcved this: %d\n", rcved);
+
+    if (rcved < HSIZE) {
+      fprintf(stderr, "%d\n", rcved);
+      continue;
+    }
+    int flags; int seq;
+    int payloadSize = parseMsg(msg, payload, &flags, &seq, rcved);
+    fprintf(stderr, "flag: %d\n", flags);
+    if(payloadSize >= 0 && (flags & SYN)) {
+      fprintf(stderr, "yay\n");
+      break;
+    }
+  }
+  // end of filename transfer
+
+  
+  // make SYNAck (seqnum = 0)
+  char SYNack[4];
+  formatMsg(SYNack, "", 0, 0, ACK | SYN);
+  while (1) {
+    int sent;
+    while((sent = sendto(sockfd, SYNack, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
+      fprintf(stderr, "synack sent: %d\n", sent);
+    }
+    fprintf(stderr, "here synack\n");
+
+    //sleep(2 * RTO);
     int rcved = recvfrom(sockfd, msg, sizeof(union header), MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
 
     if (rcved < HSIZE) {
@@ -182,17 +215,13 @@ int main(int argc, char * argv[])
     }
     int flags; int seq;
     int payloadSize = parseMsg(msg, payload, &flags, &seq, rcved);
-    if(payloadSize >= 0 && flags == SYN) {
-      fprintf(stderr, "yay\n");
+    if(payloadSize >= 0 && flags == ACK) {
+      fprintf(stderr, "yay got ACK for SYNACK\n");
       break;
     }
   }
-  // end of filename transfer
 
-  
-  // make SYNAck
-  
-
+  // send file chunks seqnumstart = 1
 
 }
 

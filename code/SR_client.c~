@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define BUFSIZE 1024
+#define BUFSIZE 2048
 #define HSIZE 4 //header size
 #define ARGMSG "argument failure: ./client hostname port# file"
 #define ACK 1
@@ -21,8 +21,8 @@ union header
 {
   char bytes[4];
   struct fields {
-    unsigned short seq;        //seq number
-    unsigned short flags_size; //flag (4bit) + size of payload & header (10bit) << 4 
+    short seq;        //seq number
+    short flags_size; //flag (4bit) + size of payload & header (10bit) << 4 
   } fields;
 };
 
@@ -103,39 +103,26 @@ int main(int argc, char *argv[])
   serverA.sin_port = htons(port);
 
   //UDP needs no connection, transmit msg from here
-  socklen_t servA_len; //stores clientA length
-  char payload[BUFSIZE-HSIZE]; int flags; int seq; int n; //size
+  char msg[BUFSIZE-4];
   char fmsg[BUFSIZE];
 
   //send request msg (format & send until make)
-  do {
-    n = sprintf(payload, "%s:%s","REQUEST", argv[3]); //REQUEST:fileName
-    n = formatMsg(fmsg, payload, n, 0, ACK); //fmsg = header(4)+payload(msg)
-    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
-    if (debug) fprintf(stderr, ">request sent\n");
-    sleep(2);
-    n = recvfrom(sockfd, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
-    if (debug) fprintf(stderr, ">received %d\n", n);
-  }
-  while (n != parseMsg(fmsg, payload, &flags, &seq) || !(flags & ACK)); //file mismatch or no ack
-  
-  //received response (404)
-  if(flags & FOF) {printf("404 not found error\n"); exit(0);}
-
-  //send sync msg
-  n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
+  int n = sprintf(msg, "%s:%s","REQUEST", argv[3]); //REQUEST:fileName
+  n = formatMsg(fmsg, msg, n, 0, SYN+FIN); //fmsg = header(4)+payload(msg)
   while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
-  
+
   //receive msg & send ACK
+  char payload[BUFSIZE-HSIZE]; int flags; int seq; 
+  socklen_t servA_len; //stores clientA length
   while(1) {
     //receive msg
     if (debug) fprintf(stderr, ">waiting for msg\n");
-    int n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
+    int n = recvfrom(sockfd, msg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
 
     //check for error & parse msg
     if(n >= BUFSIZE) reportError("Buffer overflow", 1);
     if(n < 0) reportError("recvfrom error", 2);
-    n = parseMsg(fmsg, payload, &flags, &seq);
+    n = parseMsg(msg, payload, &flags, &seq);
 
     //read paylaod                                                                             
     if(n > 0) {

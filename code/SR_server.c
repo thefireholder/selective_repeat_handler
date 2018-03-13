@@ -104,7 +104,7 @@ int main(int argc, char * argv[])
 
     int payloadSize = parseMsg(msg, payload, &flags, &seq, n);
     if (payloadSize < 0) {
-      fprintf("Got nonmatching error")
+      fprintf("Got nonmatching error", stdout);
       continue;
     }
     
@@ -128,27 +128,29 @@ int main(int argc, char * argv[])
   } else {
     ACK_filename.fields.flags_size = FOF;
   }
-  //
-  int timeout_sockfd = socket(PF_INET, SOCK_DGRAM, 0);
-  struct timeval tv;
-  tv.tv_sec = 2 * RTO;
-  tv.tv_usec = 0;
-  setsockopt(timeout_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
-  //
+
+  // int timeout_sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+  // struct timeval tv;
+  // tv.tv_sec = 2 * RTO;
+  // tv.tv_usec = 0;
+  // setsockopt(timeout_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
   while(1) {
-    while(sendto(sockfd, ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len) <= sizeof(union header));
-    int rcved = recvfrom(timeout_sockfd, msg, sizeof(union header), 0, (struct sockaddr *)&clientA, clientA_len);
+    while(sendto(sockfd, &ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len) <= sizeof(union header));
+    int rcved = recvfrom(sockfd, msg, sizeof(union header), 0, (struct sockaddr *)&clientA, clientA_len);
     if (rcved < HSIZE) {
       continue;
     }
-    int flags, int seq;
+    int flags; int seq;
     int payloadSize = parseMsg(msg, payload, &flags, &seq, rcved);
-    if(payloadSize < 0) continue;
-    if(flags == SYN) break;
+    if(payloadSize >= 0 && flags == SYN) {
+      break;
+    }
+    sleep(RTO * 2);
   }
   
   // make SYNAck
-  
+
 
 
 }

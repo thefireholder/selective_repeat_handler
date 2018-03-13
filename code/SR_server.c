@@ -41,6 +41,23 @@ int reportError(char* msg, int errorCode)
   exit(errorCode);
 }
 
+int formatMsg(char* n_msg, char* o_msg, int o_msgSize, int seq, int flags)
+{
+    //find o_msg Length
+    if(o_msgSize == -1) o_msgSize = strlen(o_msg);
+    
+    //set header field
+    union header h;
+    h.fields.seq = seq;
+    h.fields.flags_size = flags + ((o_msgSize+4)<<4);
+    
+    //copy header + payload into n_msg
+    memcpy(n_msg, h.bytes, 4);
+    memcpy(n_msg+4, o_msg, o_msgSize);
+    
+    return o_msgSize+4;
+}
+
 int parseMsg(char* msg, char*payload, int* flags, int* seq, int n)
 //given headed msg, parse msg (find size from header)
 //return payload size (if only header is sent, return 0)
@@ -126,12 +143,12 @@ int main(int argc, char * argv[])
   }
 
   // sending ACK for filename until SYN
-  union header ACK_filename;
+  char ACK_filename[4];
   if (access(payload, F_OK) != -1){
-    ACK_filename.fields.flags_size = ACK;
+    formatMsg(ACK_filename, "", 0, 0, ACK);
     fprintf(stderr, "has file\n");
   } else {
-    ACK_filename.fields.flags_size = FOF;
+    formatMsg(ACK_filename, "", 0, 0, FOF);
     fprintf(stderr, "no file\n");
   }
 
@@ -153,7 +170,7 @@ int main(int argc, char * argv[])
   while(1) {
     int sent;
     fprintf(stderr, "yo\n");
-    while((sent = sendto(sockfd, &ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) <= sizeof(union header)) {
+    while((sent = sendto(sockfd, ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) <= sizeof(union header)) {
       //sfprintf(stderr, "%d\n", sent);
     }
     sleep(2 * RTO);

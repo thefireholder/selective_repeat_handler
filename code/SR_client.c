@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 
   //send request msg (format & send until make)
   do {
-    n = sprintf(payload, "%s:%s","REQUEST", argv[3]); //REQUEST:fileName
+    n = sprintf(payload, "%s", argv[3]); //REQUEST:fileName
     n = formatMsg(fmsg, payload, n, 0, ACK); //fmsg = header(4)+payload(msg)
     while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
     if (debug) fprintf(stderr, ">request sent\n");
@@ -123,9 +123,16 @@ int main(int argc, char *argv[])
   if(flags & FOF) {printf("404 not found error\n"); exit(0);}
 
   //send sync msg
-  n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
-  while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
-  
+  do {
+    n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
+    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
+    if (debug) fprintf(stderr, ">request sent\n");
+    sleep(2);
+    n = recvfrom(sockfd, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
+    if (debug) fprintf(stderr, ">received %d\n", n);
+  }
+  while (n != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); //file mismatch or no ack
+
   //receive msg & send ACK
   while(1) {
     //receive msg

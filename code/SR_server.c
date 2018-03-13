@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <errno.h>
+#include <string.h>
 
 #define BUFSIZE 2048
 #define HSIZE 4 //header size
@@ -61,7 +63,6 @@ int parseMsg(char* msg, char*payload, int* flags, int* seq, int n)
 int main(int argc, char * argv[])
 {
   //address structures
-  fprintf(stderr, "hello\n");
   struct sockaddr_in modelA;
   struct sockaddr_storage clientA; //note I didn't use sockaddr_in!
 
@@ -132,20 +133,33 @@ int main(int argc, char * argv[])
     ACK_filename.fields.flags_size = FOF;
   }
 
-  int timeout_sockfd = socket(PF_INET, SOCK_DGRAM, 0);
-  struct timeval tv;
-  tv.tv_sec = 2 * RTO;
-  tv.tv_usec = 0;
-  setsockopt(timeout_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+  // set up timeout_sockfd
+  // int timeout_sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+  // if (timeout_sockfd == -1) reportError("socket creation failed", 2);
+  // struct sockaddr_in timeout_model;
+  // timeout_model.sin_family = AF_INET; //communication domain
+  // timeout_model.sin_addr.s_addr = INADDR_ANY; // ip (accepts any internet address)
+  // timeout_model.sin_port = htons(port); //server port
+  // if (bind(timeout_sockfd, (struct sockaddr *) &timeout_model, sizeof(timeout_model)) < 0)
+  //   reportError("socket binding failed",2);
+  // struct timeval tv;
+  // tv.tv_sec = 2 * RTO;
+  // tv.tv_usec = 0;
+  // setsockopt(timeout_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+  //
 
+  fprintf(stderr, "%lu\n", sizeof(union header));
   while(1) {
-    while(sendto(timeout_sockfd, &ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len) <= sizeof(union header));
-    int rcved = recvfrom(timeout_sockfd, msg, sizeof(union header), 0, (struct sockaddr *)&clientA, &clientA_len);
+    int sent;
+    fprintf(stderr, "yo\n");
+    while((sent = sendto(sockfd, &ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) <= sizeof(union header)) {
+      //sfprintf(stderr, "%d\n", sent);
+    }
+    sleep(2 * RTO);
+    int rcved = recvfrom(sockfd, msg, sizeof(union header), 0, (struct sockaddr *)&clientA, &clientA_len);
     
     if (rcved < HSIZE) {
-          fprintf(stderr, "%d\n", rcved);
-          fprintf(stderr, "timeout\n");
-
+      fprintf(stderr, "%d\n", rcved);
       continue;
     }
     int flags; int seq;

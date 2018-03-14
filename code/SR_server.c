@@ -22,7 +22,7 @@
 #define RTO 1
 #define WND 5120
 // TODO: make sure mod 30720
-#define MAXSEQ 30720
+#define MAXSEQ 30721
 
 //show greater detail if debug flag is on
 int debug = 0; 

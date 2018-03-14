@@ -9,9 +9,11 @@
 
 #include <errno.h>
 
+#define MAXSEQ 30720
 #define BUFSIZE 1024
 #define HSIZE 4 //header size
 #define WNDSIZE 5 //receive window size 
+#define DUPSEC_LEN MAXSEQ/BUFSIZE/3+1
 #define WFILE "received.data"
 #define ARGMSG "argument failure: ./client hostname port# file"
 #define ACK 1
@@ -90,29 +92,29 @@ int parseMsg(char* msg, char*payload, int* flags, int* seq)
 }
 
 
-int duplicate_check(int ** seq_d, int seq)
+int duplicate_check(int seq_d[][DUPSEC_LEN], int seq)
 //check if duplicate, if so return 1
 //else store the value, return 0 AND
 //if it is storing in the first of its 3 section, erase the farthest section
 //0: 0~10239 .. 1:10240~20479 .. 2:20480~30719
 {
   int sec; //find section to use
-  if (seq < 10240) sec = 0;
-  else if (seq < 20480) sec = 1;
+  if (seq < MAXSEQ/3) sec = 0;
+  else if (seq < MAXSEQ*2/3) sec = 1;
   else sec = 2;
 
   int i;
-  for(i = 0; i < 11; i++)
+  for(i = 0; i < DUPSEC_LEN; i++)
   {
     if(seq_d[sec][i] == seq) return 1; //duplicate, return 1
     if(seq_d[sec][i] == -1) break; //when first empty encountered
   }
-  if(i == 11) reportError("not enought space in seq_d section",3);
+  if(i == DUPSEC_LEN) reportError("not enought space in seq_d section",3);
 
   //store in that empty
   seq_d[sec][i] = seq;
   //and if that is first entry, reset farthest section
-  if (i==0) memset(seq_d[(sec+1)%3], -1, 11);
+  if (i==0) memset(seq_d[(sec+1)%3], -1, 4 * DUPSEC_LEN);
   return 0;
 }
 
@@ -134,6 +136,21 @@ int insert_w(struct seq_msg wnd[], char*payload, int seq, int size)
   return -1;
 }
 //wnd must have n = WNDSIZE entries
+
+void write_w(FILE * fp, struct seq_msg wnd[], int* recv_base)
+//write to file if recv_base is received
+//if so, also remove that entry with -1
+{
+  while(1) {
+    int i; 
+    for(i = 0; i < WNDSIZE; i++)//look for match
+      if (wnd[i].seq == *recv_base) break;
+    if (i == 5) return; //no match found
+    //write()
+    *recv_base = wnd[i].seq + wnd[i].size;
+  }
+
+}
 
 int main(int argc, char *argv[])
 {
@@ -192,7 +209,7 @@ int main(int argc, char *argv[])
   //send sync msg
 
   do {
-    if (debug) fprintf(stderr, "Sending packet SYN\n");
+    printf("Sending packet SYN\n");
     n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
     while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
     n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
@@ -200,19 +217,19 @@ int main(int argc, char *argv[])
   }
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); // received msg
 
-  
+  //send sync ack
+  n = formatMsg(fmsg, payload, 0, seq, ACK);
+  while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
+
   //seq and file transfer
-  int seq_d[3][11]; //sequence number stored for duplicate checking
+  int seq_d[3][DUPSEC_LEN]; //sequence number stored for duplicate checking
   //0: 0~10239 .. 1:10240~20479 .. 2:20480~30719
   int recv_base;
   struct seq_msg r_window[WNDSIZE];
-
+  memset(seq_d, -1, 3*4*DUPSEC_LEN); //set it to empty
 
   //deal with syn
-  seq_d[0][0] = seq; //first seq
   recv_base = seq + n; //base
-
-
 
   //receive msg & send ACK
   while(1) {
@@ -226,24 +243,37 @@ int main(int argc, char *argv[])
     if(n < HSIZE) reportError("recvfrom error (less than 4 byte)", 2);
     n = parseMsg(fmsg, payload, &flags, &seq);
 
-    //duplicate check
-    //if (duplicate_check(seq_d, seq)) {
-    //  printf("Sending packet %d Retransmission",seq);
-    //}
-
-    //insert msg into window
-    //if (insert_w(r_window, payload, seq, n) == -1) reportError("not enough space in r_window",3);
-    
-
-    //read paylaod                                                                             
-    if(n > 0) {
-      if (debug) fprintf(stderr, "Message from server:\n");
-      payload[n]=0;
-      printf("%d, %s\n\n", n, payload);
+    //ignore duplicate SYN (just send more ACK)
+    if(flags & SYN) {
+      n = formatMsg(fmsg, payload, 0, seq, ACK);
+      while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
+      continue;
     }
 
-    //send ack
-    printf("Sending packet %d",seq);
+    //okay from here you are actually receiving legitimate packets
+    printf("Receiving packet %d\n",seq);
+
+
+    //duplicate check
+    if (duplicate_check(seq_d, seq)) {
+      printf("Sending packet %d Retransmission\n",seq);
+    }
+    else { //not duplicate
+
+      //insert msg into window
+      //if (insert_w(r_window, payload, seq, n) == -1) reportError("not enough space in r_window",3);
+      
+
+      //read paylaod                                                                             
+      if(n > 0) {
+	if (debug) fprintf(stderr, "Message from server:\n");
+	payload[n]=0;
+	if (debug) fprintf(stderr, "%d, %s\n\n", n, payload);
+      }
+
+      //send ack
+      printf("Sending packet %d\n",seq);
+    }
     n = formatMsg(fmsg, payload, 0, seq, ACK);
     while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
   }

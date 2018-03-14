@@ -141,21 +141,32 @@ int insert_w(struct seq_msg wnd[], char*payload, int seq, int size)
 
 void write_w(int fd, struct seq_msg wnd[], int* recv_base)
 //write to file if recv_base is received
-//if so, also remove that entry with -1
+//if so, update recv_base and remove that entry with -1
 {
   while(1) {
-    int i; 
+    int i; int n = 0; 
     for(i = 0; i < WNDSIZE; i++)//look for match
       if (wnd[i].seq == *recv_base) break;
     if (i == 5) return; //no match found
-    //write()
-    *recv_base = wnd[i].seq + wnd[i].size;
-  }
 
+    //write completely
+    do {
+      int w = write(fd, wnd[i].msg + n, wnd[i].size - n); n += w;
+      if(w < 0) reportError("write",1);
+    }
+    while(wnd[i].size != n);
+
+    //update recv_base and remove entry
+    *recv_base = wnd[i].seq + wnd[i].size;
+    wnd[i].seq = -1;
+  }
 }
 
 int main(int argc, char *argv[])
 {
+  //disable buffering
+  setbuf(stdout, NULL);
+
   struct sockaddr_in serverA;
 
   //argument check
@@ -265,6 +276,8 @@ int main(int argc, char *argv[])
       //insert msg into window
       //if (insert_w(r_window, payload, seq, n) == -1) reportError("not enough space in r_window",3);
       
+      //write msg to file if recv_base is gotten
+      //write_w(fd, r_window, &recv_base)
 
       //read paylaod                                                                             
       if(n > 0) {

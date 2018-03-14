@@ -11,12 +11,14 @@
 
 #define BUFSIZE 1024
 #define HSIZE 4 //header size
+#define WNDSIZE 5 //receive window size 
 #define WFILE "received.data"
 #define ARGMSG "argument failure: ./client hostname port# file"
 #define ACK 1
 #define SYN 2
 #define FIN 4
 #define FOF 8
+
 
 int debug = 0; //when on, prints more detail to stderr msg.
 
@@ -27,6 +29,12 @@ union header
     unsigned short seq;        //seq number
     unsigned short flags_size; //flag (4bit) + size of payload & header (10bit) << 4 
   } fields;
+};
+
+struct seq_msg {
+  int seq; //if entries is empty, seq = -1
+  int size;
+  char msg[BUFSIZE];
 };
 
 int reportError(char* msg, int errorCode)
@@ -81,6 +89,48 @@ int parseMsg(char* msg, char*payload, int* flags, int* seq)
   return size;
 }
 
+
+int duplicate_check(int ** seq_d, int seq)
+//check if duplicate, if so return 1
+//else store the value, return 0 AND
+//if it is storing in the first of its 3 section, erase the farthest section
+//0: 0~10239 .. 1:10240~20479 .. 2:20480~30719
+{
+  int sec; //find section to use
+  if (seq < 10240) sec = 0;
+  else if (seq < 20480) sec = 1;
+  else sec = 2;
+
+  int i;
+  for(i = 0; i < 11; i++)
+  {
+    if(seq_d[sec][i] == seq) return 1; //if duplicate, return
+    if(seq_d[sec][i] == -1) break; //if first empty encountered
+  }
+
+  //store in that empty
+  seq_d[sec][i] = seq;
+  if (i==0) memset(seq_d[(sec+2)%3], -1, 11);
+  return 0;
+}
+
+int insert_w(struct seq_msg wnd[], char*payload, int seq, int size)
+//insert msg into seq window (size refer to payload size)
+//0 on succes (if impossible return -1)
+{
+  for(int i = 0; i < WNDSIZE; i++)
+  {
+    if (wnd[i].seq == -1) //empty
+    {
+      wnd[i].seq = seq;
+      wnd[i].size = size;
+      memcpy(payload, wnd[i].msg, size);
+      return 0;
+    }
+  }
+  return -1;
+}
+//wnd must have n = WNDSIZE entries
 
 int main(int argc, char *argv[])
 {
@@ -147,11 +197,18 @@ int main(int argc, char *argv[])
   }
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); // received msg
 
-  //if syn, n == 0
-  //else need to recv actual msg
-
+  
+  //seq and file transfer
   int seq_d[3][11]; //sequence number stored for duplicate checking
   //0: 0~10239 .. 1:10240~20479 .. 2:20480~30719
+  int recv_base;
+  struct seq_msg r_window[WNDSIZE];
+
+
+  //deal with syn
+  seq_d[0][0] = seq; //first seq
+  recv_base = seq + n; //base
+
 
 
   //receive msg & send ACK
@@ -159,12 +216,19 @@ int main(int argc, char *argv[])
 
     //receive msg
     if (debug) fprintf(stderr, ">waiting for msg\n");
-    if (flags & SYN) n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
+    n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
 
     //check for error & parse msg
     if(n > BUFSIZE) reportError("Buffer overflow", 1);
     if(n < HSIZE) reportError("recvfrom error (less than 4 byte)", 2);
     n = parseMsg(fmsg, payload, &flags, &seq);
+
+    //duplicate check
+    
+
+    //insert msg into window
+    //if (insert_w(r_window, payload, seq, n) == -1) reportError("not enough space in r_window",3);
+    
 
     //read paylaod                                                                             
     if(n > 0) {

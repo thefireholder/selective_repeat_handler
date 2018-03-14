@@ -137,10 +137,10 @@ int main(int argc, char *argv[])
 
   //send sync msg
   do {
-    printf("Sending packet SYN");
+    if (debug) fprintf(stderr, "Sending packet SYN\n");
     n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
-    while(sendto(timebomb, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
-    n = recvfrom(timebomb, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
+    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
+    n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
     if (debug) fprintf(stderr, ">received %d\n", n);
   }
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); // received msg

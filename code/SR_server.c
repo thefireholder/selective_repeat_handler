@@ -268,18 +268,18 @@ int main(int argc, char * argv[])
     if (done < 0 && wind < 5) {
       if (window[wind]==0) {
         int pack_payload = try_fill(file_fd, file_buf);
-        if(pack_payload < PACKETSIZE - HSIZE) {done = seqnum;}
+        int cur_sn = (base_seq + wind * PACKETSIZE) % MAXSEQ;
+        if(pack_payload < PACKETSIZE - HSIZE) {done = cur_sn;}
         //fprintf(stderr, "pack_payload: %d\n", pack_payload);
         char send_msg[HSIZE + pack_payload];
-        formatMsg(send_msg, file_buf, pack_payload, seqnum, 0);
+        formatMsg(send_msg, file_buf, pack_payload, cur_sn, 0);
         int sent;
         while((sent = sendto(sockfd, send_msg, HSIZE+pack_payload, 0,(struct sockaddr *)&clientA, clientA_len)) < HSIZE+pack_payload) {
           //fprintf(stderr, "sent: %d\n", sent);
         }
-        printf("Sending packet %d %d\n", seqnum, WND);
+        printf("Sending packet %d %d\n", cur_sn, WND);
         //fprintf(stderr, "sent seq: %d\n", seqnum);
         //change next seqnum
-        seqnum = (seqnum + HSIZE + pack_payload) % MAXSEQ;
         window[wind] = 1; //sent not ack
       }
       wind ++;

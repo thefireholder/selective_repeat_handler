@@ -131,7 +131,7 @@ int insert_w(struct seq_msg wnd[], char*payload, int seq, int size)
     {
       wnd[i].seq = seq;
       wnd[i].size = size;
-      memcpy(payload, wnd[i].msg, size);
+      memcpy(wnd[i].msg, payload, size);
       return 0;
     }
   }
@@ -161,7 +161,8 @@ void write_w(int fd, struct seq_msg wnd[], int* recv_base)
     while(wnd[i].size != n);
 
     //update recv_base and remove entry
-    *recv_base = wnd[i].seq + wnd[i].size;
+    *recv_base = wnd[i].seq + wnd[i].size + HSIZE;
+    if (*recv_base > MAXSEQ) *recv_base = 0;
     fprintf(stderr,"new base:%d\n",*recv_base);
     wnd[i].seq = -1;
   }
@@ -284,7 +285,7 @@ int main(int argc, char *argv[])
 
       //insert msg into window
       if (insert_w(r_window, payload, seq, n) == -1) reportError("not enough space in r_window",3);
-      
+
       //write msg to file if recv_base is gotten
       write_w(fd, r_window, &recv_base);
 

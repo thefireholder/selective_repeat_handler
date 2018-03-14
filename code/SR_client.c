@@ -146,7 +146,11 @@ void write_w(int fd, struct seq_msg wnd[], int* recv_base)
   while(1) {
     int i; int n = 0; 
     for(i = 0; i < WNDSIZE; i++)//look for match
+    {
+      //fprintf(stderr,"%d:%d\n",i,wnd[i].seq);
+      //fprintf(stderr,"base:%d\n",  *recv_base);
       if (wnd[i].seq == *recv_base) break;
+    }
     if (i == 5) return; //no match found
 
     //write completely
@@ -158,6 +162,7 @@ void write_w(int fd, struct seq_msg wnd[], int* recv_base)
 
     //update recv_base and remove entry
     *recv_base = wnd[i].seq + wnd[i].size;
+    fprintf(stderr,"new base:%d\n",*recv_base);
     wnd[i].seq = -1;
   }
 }
@@ -216,7 +221,7 @@ int main(int argc, char *argv[])
   
   //received response (404)
   if(flags & FOF) {printf("404 not found error\n"); exit(0);}
-  else fd = open(WFILE, O_CREAT | O_RDWR);
+  else fd = open(WFILE, O_CREAT | O_RDWR, S_IRWXU);
   
 
   //send sync msg
@@ -239,7 +244,11 @@ int main(int argc, char *argv[])
   //0: 0~10239 .. 1:10240~20479 .. 2:20480~30719
   int recv_base;
   struct seq_msg r_window[WNDSIZE];
-  memset(seq_d, -1, 3*4*DUPSEC_LEN); //set it to empty
+
+  //set entries to empty
+  memset(seq_d, -1, 3*4*DUPSEC_LEN); 
+  for(int i = 0; i< WNDSIZE; i++) 
+    r_window[i].seq = -1;
 
   //deal with syn
   recv_base = seq + n; //base
@@ -274,10 +283,10 @@ int main(int argc, char *argv[])
     else { //not duplicate
 
       //insert msg into window
-      //if (insert_w(r_window, payload, seq, n) == -1) reportError("not enough space in r_window",3);
+      if (insert_w(r_window, payload, seq, n) == -1) reportError("not enough space in r_window",3);
       
       //write msg to file if recv_base is gotten
-      //write_w(fd, r_window, &recv_base)
+      write_w(fd, r_window, &recv_base);
 
       //read paylaod                                                                             
       if(n > 0) {

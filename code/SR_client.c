@@ -11,6 +11,7 @@
 
 #define BUFSIZE 1024
 #define HSIZE 4 //header size
+#define WFILE "received.data"
 #define ARGMSG "argument failure: ./client hostname port# file"
 #define ACK 1
 #define SYN 2
@@ -132,10 +133,11 @@ int main(int argc, char *argv[])
   
   //received response (404)
   if(flags & FOF) {printf("404 not found error\n"); exit(0);}
-  else fp = fopen(argv[3],"wr+");
+  else fp = fopen(WFILE,"wr+");
   
 
   //send sync msg
+
   do {
     if (debug) fprintf(stderr, "Sending packet SYN\n");
     n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
@@ -148,8 +150,13 @@ int main(int argc, char *argv[])
   //if syn, n == 0
   //else need to recv actual msg
 
+  int seq_d[3][11]; //sequence number stored for duplicate checking
+  //0: 0~10239 .. 1:10240~20479 .. 2:20480~30719
+
+
   //receive msg & send ACK
   while(1) {
+
     //receive msg
     if (debug) fprintf(stderr, ">waiting for msg\n");
     if (flags & SYN) n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);

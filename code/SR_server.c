@@ -108,6 +108,7 @@ int try_fill(int fd, char* file_buf) {
 
 int main(int argc, char * argv[])
 {
+  setbuf(stdout, NULL);
   //address structures
   struct sockaddr_in modelA;
   struct sockaddr_storage clientA; //note I didn't use sockaddr_in!
@@ -231,10 +232,11 @@ int main(int argc, char * argv[])
   while (1) {
     int sent;
     while((sent = sendto(sockfd, SYNack, sizeof(union header), seqnum,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
-      fprintf(stderr, "synack sent: %d\n", sent);
+      //fprintf(stderr, "synack sent: %d\n", sent);
     }
-    fprintf(stderr, "sent: %d\n", sent);
-    fprintf(stderr, "here synack\n");
+    //fprintf(stderr, "sent: %d\n", sent);
+    //fprintf(stderr, "here synack\n");
+    printf("Sending packet %d %d SYN\n", 0, WND);
 
     //sleep(2 * RTO);
     int rcved = recvfrom(sockfd, msg, sizeof(union header), MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
@@ -246,7 +248,8 @@ int main(int argc, char * argv[])
     int flags; int seq;
     int payloadSize = parseMsg(msg, payload, &flags, &seq, rcved);
     if(payloadSize >= 0 && flags == ACK && seq == 0) {
-      fprintf(stderr, "yay got ACK for SYNACK\n");
+      //fprintf(stderr, "yay got ACK for SYNACK\n");
+      printf("Receiving packet %d\n", 0);
       seqnum ++; // 1 byte SYN
       break;
     }
@@ -266,14 +269,15 @@ int main(int argc, char * argv[])
       if (window[wind]==0) {
         int pack_payload = try_fill(file_fd, file_buf);
         if(pack_payload < PACKETSIZE - HSIZE) {done = seqnum;}
-        fprintf(stderr, "pack_payload: %d\n", pack_payload);
+        //fprintf(stderr, "pack_payload: %d\n", pack_payload);
         char send_msg[HSIZE + pack_payload];
         formatMsg(send_msg, file_buf, pack_payload, seqnum, 0);
         int sent;
         while((sent = sendto(sockfd, send_msg, HSIZE+pack_payload, 0,(struct sockaddr *)&clientA, clientA_len)) < HSIZE+pack_payload) {
           //fprintf(stderr, "sent: %d\n", sent);
         }
-        fprintf(stderr, "sent seq: %d\n", seqnum);
+        printf("Sending packet %d %d\n", seqnum, WND);
+        //fprintf(stderr, "sent seq: %d\n", seqnum);
         //change next seqnum
         seqnum = (seqnum + HSIZE + pack_payload) % MAXSEQ;
         window[wind] = 1; //sent not ack
@@ -292,16 +296,17 @@ int main(int argc, char * argv[])
       }
       char client_ACK[HSIZE];
       //wait & recv
-      fprintf(stderr, "waiting for ACK\n");
+      //fprintf(stderr, "waiting for ACK\n");
       int rcved = recvfrom(sockfd, client_ACK, HSIZE, 0, (struct sockaddr *)&clientA, &clientA_len);
-      fprintf(stderr, "rcved: %d\n", rcved);
+      //fprintf(stderr, "rcved: %d\n", rcved);
       char client_payload;
       int flags; int seq;
       int payload_size = parseMsg(client_ACK, &client_payload, &flags, &seq, rcved);
-      fprintf(stderr, "flags: %d\n", flags);
+      //fprintf(stderr, "flags: %d\n", flags);
       if(payload_size < 0) reportError("not matching!\n", 2);
       // ignore the rest
       if((flags & ACK) && in_range(base_seq, seq)) {
+        printf("Receiving packet %d\n", seq);
         int dist = (seq + MAXSEQ - base_seq) % MAXSEQ;
         int mark_ind = dist / (PACKETSIZE);
         window[mark_ind] = 2;

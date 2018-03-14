@@ -162,7 +162,7 @@ void write_w(int fd, struct seq_msg wnd[], int* recv_base)
 
     //update recv_base and remove entry
     *recv_base = wnd[i].seq + wnd[i].size + HSIZE;
-    if (*recv_base > MAXSEQ) *recv_base = 0;
+    if (*recv_base >= MAXSEQ) *recv_base %= MAXSEQ;
     fprintf(stderr,"new base:%d\n",*recv_base);
     wnd[i].seq = -1;
   }
@@ -268,6 +268,8 @@ int main(int argc, char *argv[])
 
     //ignore duplicate SYN (just send more ACK)
     if(flags & SYN) {
+      if (debug) fprintf(stderr, ">received SYNACK\n");
+      if (debug) fprintf(stderr, ">retransmitting ACK for SYNACK\n");
       n = formatMsg(fmsg, payload, 0, seq, ACK);
       while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
       continue;

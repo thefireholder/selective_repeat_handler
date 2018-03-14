@@ -271,10 +271,19 @@ int main(int argc, char * argv[])
       }
       wind ++;
     } else {
-      if(done >= 0 && base_seq > done)
-        break;
+      //done seq out of range
+      if(done >= 0){
+        int i;
+        int brek=1;
+        for(i=0;i<5;i++){
+          if(window[i]!=0) brek=0;
+        }
+        if(brek)
+          break;
+      }
       char client_ACK[HSIZE];
       //wait & recv
+      fprintf(stderr, "waiting for ACK\n");
       int rcved = recvfrom(sockfd, client_ACK, HSIZE, 0, (struct sockaddr *)&clientA, &clientA_len);
       char client_payload;
       int flags; int seq;
@@ -303,31 +312,6 @@ int main(int argc, char * argv[])
     }
 
   }
-
-  // while(1) {
-  //   int i;
-  //   for(i = 0; i < 5; i++) {
-  //     if(window[i] == 0){ //send
-  //       // TODO: check if need remember where the short msg (< max_packet) was sent
-  //       int pack_payload = try_fill(file_fd, file_buf);
-  //       fprintf(stderr, "pack_payload: %d\n", pack_payload);
-  //       char send_msg[HSIZE + pack_payload];
-  //       formatMsg(send_msg, file_buf, pack_payload, seqnum, 0);
-  //       //send
-  //       int sent;
-  //       while((sent = sendto(sockfd, send_msg, HSIZE+pack_payload, 0,(struct sockaddr *)&clientA, clientA_len)) < HSIZE+pack_payload) {
-  //         //fprintf(stderr, "sent: %d\n", sent);
-  //       }
-  //       fprintf(stderr, "sent seq: %d\n", seqnum);
-  //       //change seqnum !
-  //       // TODO: add timers
-  //       seqnum = (seqnum + HSIZE + pack_payload) % MAXSEQ;
-  //       window[i] = 1; //sent not ack
-  //     }
-  //   }
-  //   //wait & recv
-
-  // }
 
 }
 

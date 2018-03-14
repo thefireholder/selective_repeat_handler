@@ -9,6 +9,8 @@
 #include <string.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define BUFSIZE 2048
 #define HSIZE 4 //header size
@@ -19,6 +21,8 @@
 #define PACKETSIZE 1024
 #define RTO 1
 #define WND 5120
+// TODO: make sure mod 30720
+#define MAXSEQ 30720
 
 //show greater detail if debug flag is on
 int debug = 0; 
@@ -76,6 +80,22 @@ int parseMsg(char* msg, char*payload, int* flags, int* seq, int n)
   }
   memcpy(payload, msg + HSIZE, size);
   return size;
+}
+
+int try_fill(int fd, char* file_buf) {
+  // return how many in payload. < PACKETSIZE - HSIZE if less
+  int num_read = 0;
+  while(num_read < PACKETSIZE - HSIZE) {
+    int r = read(fd, file_buf + num_read, PACKETSIZE - HSIZE - num_read);
+    if(r < 0){
+      reportError("Error reading file\n", 2);
+    }
+    if(r==0){
+      break; //eof
+    }
+    num_read+=r;
+  }
+  return num_read;
 }
 
 int main(int argc, char * argv[])
@@ -195,13 +215,14 @@ int main(int argc, char * argv[])
   }
   // end of filename transfer
 
-  
+  int seqnum = 0;
+
   // make SYNAck (seqnum = 0)
   char SYNack[4];
   formatMsg(SYNack, "", 0, 0, ACK | SYN);
   while (1) {
     int sent;
-    while((sent = sendto(sockfd, SYNack, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
+    while((sent = sendto(sockfd, SYNack, sizeof(union header), seqnum,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
       fprintf(stderr, "synack sent: %d\n", sent);
     }
     fprintf(stderr, "sent: %d\n", sent);
@@ -216,13 +237,97 @@ int main(int argc, char * argv[])
     }
     int flags; int seq;
     int payloadSize = parseMsg(msg, payload, &flags, &seq, rcved);
-    if(payloadSize >= 0 && flags == ACK) {
+    if(payloadSize >= 0 && flags == ACK && seq == 0) {
       fprintf(stderr, "yay got ACK for SYNACK\n");
+      seqnum ++; // 1 byte SYN
       break;
     }
   }
 
   // send file chunks seqnumstart = 1
+  int file_fd = open(filename, O_RDONLY);
+  char file_buf[PACKETSIZE - HSIZE]; // max payload
+  int window[5] = {0};
+  // window timers here
+  int base_seq = seqnum;
+  int done = -1; //last seq
+  int wind = 0;
+  while (1) {
+    if (done < 0 && wind < 5) {
+      if (window[wind]==0) {
+        int pack_payload = try_fill(file_fd, file_buf);
+        if(pack_payload < PACKETSIZE - HSIZE) {done = seqnum;}
+        fprintf(stderr, "pack_payload: %d\n", pack_payload);
+        char send_msg[HSIZE + pack_payload];
+        formatMsg(send_msg, file_buf, pack_payload, seqnum, 0);
+        int sent;
+        while((sent = sendto(sockfd, send_msg, HSIZE+pack_payload, 0,(struct sockaddr *)&clientA, clientA_len)) < HSIZE+pack_payload) {
+          //fprintf(stderr, "sent: %d\n", sent);
+        }
+        fprintf(stderr, "sent seq: %d\n", seqnum);
+        //change next seqnum
+        seqnum = (seqnum + HSIZE + pack_payload) % MAXSEQ;
+        window[wind] = 1; //sent not ack
+      }
+      wind ++;
+    } else {
+      if(done >= 0 && base_seq > done)
+        break;
+      char client_ACK[HSIZE];
+      //wait & recv
+      int rcved = recvfrom(sockfd, client_ACK, HSIZE, 0, (struct sockaddr *)&clientA, &clientA_len);
+      char client_payload;
+      int flags; int seq;
+      int payload_size = parseMsg(client_ACK, &client_payload, &flags, &seq, rcved);
+      if(payload_size < 0) reportError("not matching!\n", 2);
+      // ignore the rest
+      if((flags & ACK) && (seq >= base_seq && seq<=(base_seq + wind*PACKETSIZE))) {
+        int mark_ind = (seq - base_seq) / (PACKETSIZE);
+        window[mark_ind] = 2;
+        if(mark_ind == 0){
+          // move forward
+          int i;
+          for(i=0;i<5;i++){
+            if(window[i]!=2) break;
+          }
+          // TODO: add save for timers
+          memmove(window, window+i, 5-i);
+          int j;
+          for(j=i;j<5;j++)
+            window[j]=0;
+          wind = 0;
+          base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;
+        }
+      }
+
+    }
+
+  }
+
+  // while(1) {
+  //   int i;
+  //   for(i = 0; i < 5; i++) {
+  //     if(window[i] == 0){ //send
+  //       // TODO: check if need remember where the short msg (< max_packet) was sent
+  //       int pack_payload = try_fill(file_fd, file_buf);
+  //       fprintf(stderr, "pack_payload: %d\n", pack_payload);
+  //       char send_msg[HSIZE + pack_payload];
+  //       formatMsg(send_msg, file_buf, pack_payload, seqnum, 0);
+  //       //send
+  //       int sent;
+  //       while((sent = sendto(sockfd, send_msg, HSIZE+pack_payload, 0,(struct sockaddr *)&clientA, clientA_len)) < HSIZE+pack_payload) {
+  //         //fprintf(stderr, "sent: %d\n", sent);
+  //       }
+  //       fprintf(stderr, "sent seq: %d\n", seqnum);
+  //       //change seqnum !
+  //       // TODO: add timers
+  //       seqnum = (seqnum + HSIZE + pack_payload) % MAXSEQ;
+  //       window[i] = 1; //sent not ack
+  //     }
+  //   }
+  //   //wait & recv
+
+  // }
 
 }
 

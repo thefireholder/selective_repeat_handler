@@ -228,7 +228,7 @@ int main(int argc, char * argv[])
 
   // make SYNAck (seqnum = 0)
   char SYNack[4];
-  formatMsg(SYNack, "", 0, 4, ACK | SYN);
+  formatMsg(SYNack, "", 0, 0, ACK | SYN);
   while (1) {
     int sent;
     while((sent = sendto(sockfd, SYNack, sizeof(union header), seqnum,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {

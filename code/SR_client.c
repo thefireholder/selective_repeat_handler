@@ -6,6 +6,8 @@
 #include <strings.h> //bzero bcopy
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include <errno.h>
 
@@ -13,7 +15,7 @@
 #define BUFSIZE 1024
 #define HSIZE 4 //header size
 #define WNDSIZE 5 //receive window size 
-#define DUPSEC_LEN MAXSEQ/BUFSIZE/3+1
+#define DUPSEC_LEN (MAXSEQ/BUFSIZE/3+1)
 #define WFILE "received.data"
 #define ARGMSG "argument failure: ./client hostname port# file"
 #define ACK 1
@@ -137,7 +139,7 @@ int insert_w(struct seq_msg wnd[], char*payload, int seq, int size)
 }
 //wnd must have n = WNDSIZE entries
 
-void write_w(FILE * fp, struct seq_msg wnd[], int* recv_base)
+void write_w(int fd, struct seq_msg wnd[], int* recv_base)
 //write to file if recv_base is received
 //if so, also remove that entry with -1
 {
@@ -188,7 +190,7 @@ int main(int argc, char *argv[])
   socklen_t servA_len; //stores clientA length
   char payload[BUFSIZE-HSIZE]; int flags; int seq; int n; //size
   char fmsg[BUFSIZE];
-  FILE *fp;
+  int fd;
 
   //send request msg (format & send until make)
   do {
@@ -203,7 +205,7 @@ int main(int argc, char *argv[])
   
   //received response (404)
   if(flags & FOF) {printf("404 not found error\n"); exit(0);}
-  else fp = fopen(WFILE,"wr+");
+  else fd = open(WFILE, O_CREAT | O_RDWR);
   
 
   //send sync msg

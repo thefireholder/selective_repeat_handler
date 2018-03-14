@@ -228,7 +228,7 @@ int main(int argc, char * argv[])
 
   // make SYNAck (seqnum = 0)
   char SYNack[4];
-  formatMsg(SYNack, "", 0, 0, ACK | SYN);
+  formatMsg(SYNack, "", 0, 4, ACK | SYN);
   while (1) {
     int sent;
     while((sent = sendto(sockfd, SYNack, sizeof(union header), seqnum,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
@@ -250,7 +250,7 @@ int main(int argc, char * argv[])
     if(payloadSize >= 0 && flags == ACK && seq == 0) {
       //fprintf(stderr, "yay got ACK for SYNACK\n");
       printf("Receiving packet %d\n", 0);
-      seqnum ++; // 1 byte SYN
+      seqnum += 4; // 1 byte SYN
       break;
     }
   }

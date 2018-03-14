@@ -204,13 +204,14 @@ int main(int argc, char * argv[])
     while((sent = sendto(sockfd, SYNack, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
       fprintf(stderr, "synack sent: %d\n", sent);
     }
+    fprintf(stderr, "sent: %d\n", sent);
     fprintf(stderr, "here synack\n");
 
     //sleep(2 * RTO);
     int rcved = recvfrom(sockfd, msg, sizeof(union header), MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
 
     if (rcved < HSIZE) {
-      fprintf(stderr, "%d\n", rcved);
+      fprintf(stderr, "rcved: %d\n", rcved);
       continue;
     }
     int flags; int seq;

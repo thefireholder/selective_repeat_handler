@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <time.h>
 
 #define BUFSIZE 2048
 #define HSIZE 4 //header size
@@ -119,6 +120,29 @@ int try_fill(int fd, char* file_buf) {
     num_read+=r;
   }
   return num_read;
+}
+
+
+void set_time(struct itimerval* val, long int ms) {
+  val->it_interval.tv_sec = 0;
+  val->it_interval.tv_usec = 0;
+  val->it_value.tv_sec = 0;
+  val->it_value.tv_sec = ms * 1000;
+}
+unsigned long times[5] = {0};
+int num_times = 0;
+
+void add_timer() {
+  if(num_times>=5)
+    return;
+  struct timespec cur;
+  clock_gettime(CLOCK_REALTIME, &cur);
+  times[num_times] = cur.tv_sec * 1000 + cur.tv_nsec/1000000;
+  if(num_times==0){
+    struct itimerval add;
+    set_time(&add, 500);
+  }
+  num_times++;
 }
 
 int main(int argc, char * argv[])

@@ -126,16 +126,16 @@ int try_fill(int fd, char* file_buf) {
 struct ent {
   char arr[PACKETSIZE];
   int length;
-}
+};
 struct ent ents[5];
 
-void set_time(struct itimerval* val, long int ms) {
-  val->it_interval.tv_sec = 0;
-  val->it_interval.tv_usec = 0;
-  val->it_value.tv_sec = 0;
-  val->it_value.tv_sec = ms * 1000;
-}
 unsigned long times[5] = {0};
+
+unsigned long now() {
+  struct timespec cur;
+  clock_gettime(CLOCK_REALTIME, &cur);
+  return cur.tv_sec * 1000 + cur.tv_nsec/1000000;
+}
 
 // void add_timer() {
 //   if(num_times>=5)
@@ -327,7 +327,10 @@ int main(int argc, char * argv[])
         printf("Sending packet %d %d\n", cur_sn, WND);
         //fprintf(stderr, "sent seq: %d\n", seqnum);
         //change next seqnum
-        
+        times[wind] = now() + 500;
+        memcpy(ents[wind].arr, send_msg, HSIZE+pack_payload);
+        ents[wind].length = HSIZE+pack_payload;
+
         window[wind] = 1; //sent not ack
       }
       wind ++;
@@ -346,6 +349,8 @@ int main(int argc, char * argv[])
       //wait & recv
       //fprintf(stderr, "waiting for ACK\n");
       int rcved = recvfrom(sockfd, client_ACK, HSIZE, 0, (struct sockaddr *)&clientA, &clientA_len);
+      if(rcved < 0)
+        continue;
       //fprintf(stderr, "rcved: %d\n", rcved);
       char client_payload;
       int flags; int seq;
@@ -359,6 +364,9 @@ int main(int argc, char * argv[])
         // int dist = (seq + MAXSEQ - base_seq) % MAXSEQ;
         int mark_ind = got_index; //dist / (PACKETSIZE);
         window[mark_ind] = 2;
+
+        times[mark_ind] = 0;
+
         if(mark_ind == 0){
           // move forward
           int i;
@@ -378,6 +386,8 @@ int main(int argc, char * argv[])
       }
 
     }
+
+    //add here
 
   }
 

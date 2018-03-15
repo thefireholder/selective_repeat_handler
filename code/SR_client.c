@@ -162,7 +162,7 @@ void write_w(int fd, struct seq_msg wnd[], int* recv_base)
 
     //update recv_base and remove entry
     *recv_base = wnd[i].seq + wnd[i].size + HSIZE;
-    if (*recv_base >= MAXSEQ) *recv_base %= MAXSEQ;
+    if (*recv_base > MAXSEQ) *recv_base = 0;
     fprintf(stderr,"new base:%d\n",*recv_base);
     wnd[i].seq = -1;
   }

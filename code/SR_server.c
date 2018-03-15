@@ -348,7 +348,7 @@ int main(int argc, char * argv[])
       char client_ACK[HSIZE];
       //wait & recv
       //fprintf(stderr, "waiting for ACK\n");
-      int rcved = recvfrom(sockfd, client_ACK, HSIZE, 0, (struct sockaddr *)&clientA, &clientA_len);
+      int rcved = recvfrom(sockfd, client_ACK, HSIZE, MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
       if(rcved < 0)
         continue;
       //fprintf(stderr, "rcved: %d\n", rcved);
@@ -374,11 +374,16 @@ int main(int argc, char * argv[])
             if(window[i]!=2) break;
           }
           // TODO: add save for timers
-          if(i<5)
+          if(i<5) {
             memmove(window, window+i, (5-i) * sizeof(int));
+            memmove(times, times+i, (5-i) * sizeof(int));
+            memmove(ents, ents+i, (5-i) * sizeof(struct ent));
+          }
           int j;
-          for(j=5-i;j<5;j++)
+          for(j=5-i;j<5;j++){
             window[j]=0;
+            times[j]=0;
+          }
           wind = 0;
           //base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;
           base_seq = cycle(base_seq, i);
@@ -387,7 +392,15 @@ int main(int argc, char * argv[])
 
     }
 
-    //add here
+    //check times here
+    unsigned long n = now();
+    int x;
+    for(x=0;x<5;x++){
+      if(times[x] != 0 && n >= times[x] && window[x] == 1){
+        while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length);
+        times[x] = now() + 500;
+      }
+    }
 
   }
 

@@ -137,18 +137,50 @@ unsigned long now() {
   return cur.tv_sec * 1000 + cur.tv_nsec/1000000;
 }
 
-// void add_timer() {
-//   if(num_times>=5)
-//     return;
-//   struct timespec cur;
-//   clock_gettime(CLOCK_REALTIME, &cur);
-//   times[num_times] = cur.tv_sec * 1000 + cur.tv_nsec/1000000;
-//   if(num_times==0){
-//     struct itimerval add;
-//     set_time(&add, 500);
-//   }
-//   num_times++;
-// }
+void do_FIN(int sockfd, int flags, struct sockaddr* clientA, socklen_t* clientA_len) {
+  // flags for first: FIN | flags
+  char fin[4];
+  formatMsg(fin, "", 0, 0, FIN | flags);
+  while(1) {
+    int sent;
+    while((sent = sendto(sockfd, fin, sizeof(union header), 0, clientA, *clientA_len)) < sizeof(union header)) {
+      fprintf(stderr, "sent: %d\n", sent);
+    }
+    sleep(1);
+
+    char msg[4];
+    int rcved = recvfrom(sockfd, msg, sizeof(union header), MSG_DONTWAIT, clientA, clientA_len);
+
+    if (rcved < HSIZE) {
+      fprintf(stderr, "%d\n", rcved);
+      continue;
+    }
+    int flags; int seq;
+    char payl;
+    int payloadSize = parseMsg(msg, &payl, &flags, &seq, rcved);
+    fprintf(stderr, "fin flag: %d\n", flags);
+    if(payloadSize >= 0 && (flags & FIN & ACK)) {
+      fprintf(stderr, "fin: yay got FINACK\n");
+      break;
+    }
+  }
+
+  while(1) {
+    char last_fin[4];
+    int rcved = recvfrom(sockfd, last_fin, sizeof(union header), 0, clientA, clientA_len);
+    if(rcved < HSIZE)
+      continue;
+    int flags; int seq;
+    char payl;
+    int payloadSize = parseMsg(last_fin, &payl, &flags, &seq, rcved);
+    fprintf(stderr, "fin flag: %d\n", flags);
+    if(payloadSize >= 0 && (flags & FIN) && !(flags&ACK)) {
+      fprintf(stderr, "fin: yay got client FIN\n");
+      break;
+    }
+  }
+  exit(0);
+}
 
 int main(int argc, char * argv[])
 {
@@ -222,9 +254,10 @@ int main(int argc, char * argv[])
     formatMsg(ACK_filename, "", 0, 0, ACK);
     fprintf(stderr, "has file\n");
   } else {
-    formatMsg(ACK_filename, "", 0, 0, FOF);
-    // TODO: 404 = send 404 ACK and then go "expect close" method
     fprintf(stderr, "no file\n");
+    do_FIN(sockfd, ACK | FOF, (struct sockaddr*)&clientA, &clientA_len);
+    //formatMsg(ACK_filename, "", 0, 0, FOF);
+    // TODO: 404 = send 404 ACK and then go "expect close" method
   }
 
   // set up timeout_sockfd
@@ -351,45 +384,45 @@ int main(int argc, char * argv[])
       int rcved = recvfrom(sockfd, client_ACK, HSIZE, MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
       if(rcved >= 0) {
         
-      //fprintf(stderr, "rcved: %d\n", rcved);
-      char client_payload;
-      int flags; int seq;
-      int payload_size = parseMsg(client_ACK, &client_payload, &flags, &seq, rcved);
-      //fprintf(stderr, "flags: %d\n", flags);
-      if(payload_size < 0) reportError("not matching!\n", 2);
-      // ignore the rest
-      int got_index = in_range(base_seq, seq);
-      if((flags & ACK) &&  got_index != -1){
-        printf("Receiving packet %d\n", seq);
-        // int dist = (seq + MAXSEQ - base_seq) % MAXSEQ;
-        int mark_ind = got_index; //dist / (PACKETSIZE);
-        window[mark_ind] = 2;
+        //fprintf(stderr, "rcved: %d\n", rcved);
+        char client_payload;
+        int flags; int seq;
+        int payload_size = parseMsg(client_ACK, &client_payload, &flags, &seq, rcved);
+        //fprintf(stderr, "flags: %d\n", flags);
+        if(payload_size < 0) reportError("not matching!\n", 2);
+        // ignore the rest
+        int got_index = in_range(base_seq, seq);
+        if((flags & ACK) &&  got_index != -1){
+          printf("Receiving packet %d\n", seq);
+          // int dist = (seq + MAXSEQ - base_seq) % MAXSEQ;
+          int mark_ind = got_index; //dist / (PACKETSIZE);
+          window[mark_ind] = 2;
 
-        times[mark_ind] = 0;
+          times[mark_ind] = 0;
 
-        if(mark_ind == 0){
-          // move forward
-          int i;
-          for(i=0;i<5;i++){
-            if(window[i]!=2) break;
+          if(mark_ind == 0){
+            // move forward
+            int i;
+            for(i=0;i<5;i++){
+              if(window[i]!=2) break;
+            }
+            // TODO: add save for timers
+            if(i<5) {
+              memmove(window, window+i, (5-i) * sizeof(int));
+              memmove(times, times+i, (5-i) * sizeof(int));
+              memmove(ents, ents+i, (5-i) * sizeof(struct ent));
+            }
+            int j;
+            for(j=5-i;j<5;j++){
+              window[j]=0;
+              times[j]=0;
+            }
+            wind = 0;
+            //base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;
+            base_seq = cycle(base_seq, i);
           }
-          // TODO: add save for timers
-          if(i<5) {
-            memmove(window, window+i, (5-i) * sizeof(int));
-            memmove(times, times+i, (5-i) * sizeof(int));
-            memmove(ents, ents+i, (5-i) * sizeof(struct ent));
-          }
-          int j;
-          for(j=5-i;j<5;j++){
-            window[j]=0;
-            times[j]=0;
-          }
-          wind = 0;
-          //base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;
-          base_seq = cycle(base_seq, i);
         }
       }
-     }
     }
 
     //check times here
@@ -398,13 +431,15 @@ int main(int argc, char * argv[])
     for(x=0;x<5;x++){
       if(times[x] != 0 && n >= times[x] && window[x] == 1){
         printf("resending\n");
-	while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length);
+        while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length);
         times[x] = now() + 500;
       }
     }
 
   }
 
+  // close here
+  do_FIN(sockfd, 0, (struct sockaddr*)&clientA, &clientA_len);
 }
 
 

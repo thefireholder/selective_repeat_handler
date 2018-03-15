@@ -123,6 +123,12 @@ int try_fill(int fd, char* file_buf) {
 }
 
 
+struct ent {
+  char arr[PACKETSIZE];
+  int length;
+}
+struct ent ents[5];
+
 void set_time(struct itimerval* val, long int ms) {
   val->it_interval.tv_sec = 0;
   val->it_interval.tv_usec = 0;
@@ -130,20 +136,19 @@ void set_time(struct itimerval* val, long int ms) {
   val->it_value.tv_sec = ms * 1000;
 }
 unsigned long times[5] = {0};
-int num_times = 0;
 
-void add_timer() {
-  if(num_times>=5)
-    return;
-  struct timespec cur;
-  clock_gettime(CLOCK_REALTIME, &cur);
-  times[num_times] = cur.tv_sec * 1000 + cur.tv_nsec/1000000;
-  if(num_times==0){
-    struct itimerval add;
-    set_time(&add, 500);
-  }
-  num_times++;
-}
+// void add_timer() {
+//   if(num_times>=5)
+//     return;
+//   struct timespec cur;
+//   clock_gettime(CLOCK_REALTIME, &cur);
+//   times[num_times] = cur.tv_sec * 1000 + cur.tv_nsec/1000000;
+//   if(num_times==0){
+//     struct itimerval add;
+//     set_time(&add, 500);
+//   }
+//   num_times++;
+// }
 
 int main(int argc, char * argv[])
 {
@@ -322,6 +327,7 @@ int main(int argc, char * argv[])
         printf("Sending packet %d %d\n", cur_sn, WND);
         //fprintf(stderr, "sent seq: %d\n", seqnum);
         //change next seqnum
+        
         window[wind] = 1; //sent not ack
       }
       wind ++;

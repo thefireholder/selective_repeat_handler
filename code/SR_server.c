@@ -317,9 +317,10 @@ int main(int argc, char * argv[])
             if(window[i]!=2) break;
           }
           // TODO: add save for timers
-          memmove(window, window+i, 5-i);
+          if(i<5)
+            memmove(window, window+i, (5-i) * sizeof(int));
           int j;
-          for(j=i;j<5;j++)
+          for(j=5-i;j<5;j++)
             window[j]=0;
           wind = 0;
           base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;

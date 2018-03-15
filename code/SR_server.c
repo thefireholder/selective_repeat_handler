@@ -347,10 +347,10 @@ int main(int argc, char * argv[])
       }
       char client_ACK[HSIZE];
       //wait & recv
-      //fprintf(stderr, "waiting for ACK\n");
+      printf("waiting for ACK\n");
       int rcved = recvfrom(sockfd, client_ACK, HSIZE, MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
-      if(rcved < 0)
-        continue;
+      if(rcved >= 0) {
+        
       //fprintf(stderr, "rcved: %d\n", rcved);
       char client_payload;
       int flags; int seq;
@@ -389,7 +389,7 @@ int main(int argc, char * argv[])
           base_seq = cycle(base_seq, i);
         }
       }
-
+     }
     }
 
     //check times here
@@ -397,7 +397,8 @@ int main(int argc, char * argv[])
     int x;
     for(x=0;x<5;x++){
       if(times[x] != 0 && n >= times[x] && window[x] == 1){
-        while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length);
+        printf("resending\n");
+	while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length);
         times[x] = now() + 500;
       }
     }

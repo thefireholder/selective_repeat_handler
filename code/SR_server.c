@@ -83,11 +83,26 @@ int parseMsg(char* msg, char*payload, int* flags, int* seq, int n)
 }
 
 int in_range(int base_seq, int seq) {
-  return seq==base_seq ||
-         seq==(base_seq + PACKETSIZE) % MAXSEQ ||
-         seq==(base_seq + 2*PACKETSIZE) % MAXSEQ ||
-         seq==(base_seq + 3*PACKETSIZE) % MAXSEQ ||
-         seq==(base_seq + 4*PACKETSIZE) % MAXSEQ;
+
+  int i;
+  for(i=0;i<5;i++){
+    if(seq==base_seq)
+      return i;
+    base_seq += PACKETSIZE;
+    if(base_seq > MAXSEQ)
+      base_seq = 0;
+  }
+  return -1;
+}
+
+int cycle(int seq, int num_pack) {
+  int i;
+  for(i=0;i<num_pack;i++){
+    seq += PACKETSIZE;
+    if(seq > MAXSEQ)
+      seq = 0;
+  }
+  return seq;
 }
 
 int try_fill(int fd, char* file_buf) {
@@ -268,7 +283,10 @@ int main(int argc, char * argv[])
     if (done < 0 && wind < 5) {
       if (window[wind]==0) {
         int pack_payload = try_fill(file_fd, file_buf);
-        int cur_sn = (base_seq + wind * PACKETSIZE) % MAXSEQ;
+        //int cur_sn = (base_seq + wind * PACKETSIZE) % MAXSEQ;
+
+        int cur_sn = cycle(base_seq, wind);
+
         if(pack_payload < PACKETSIZE - HSIZE) {done = cur_sn;}
         //fprintf(stderr, "pack_payload: %d\n", pack_payload);
         char send_msg[HSIZE + pack_payload];
@@ -305,10 +323,11 @@ int main(int argc, char * argv[])
       //fprintf(stderr, "flags: %d\n", flags);
       if(payload_size < 0) reportError("not matching!\n", 2);
       // ignore the rest
-      if((flags & ACK) && in_range(base_seq, seq)) {
+      int got_index = in_range(base_seq, seq);
+      if((flags & ACK) &&  got_index != -1){
         printf("Receiving packet %d\n", seq);
-        int dist = (seq + MAXSEQ - base_seq) % MAXSEQ;
-        int mark_ind = dist / (PACKETSIZE);
+        // int dist = (seq + MAXSEQ - base_seq) % MAXSEQ;
+        int mark_ind = got_index; //dist / (PACKETSIZE);
         window[mark_ind] = 2;
         if(mark_ind == 0){
           // move forward
@@ -323,7 +342,8 @@ int main(int argc, char * argv[])
           for(j=5-i;j<5;j++)
             window[j]=0;
           wind = 0;
-          base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;
+          //base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;
+          base_seq = cycle(base_seq, i);
         }
       }
 

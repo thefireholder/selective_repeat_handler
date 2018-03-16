@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
     n = formatMsg(fmsg, payload, n, 0, ACK); //fmsg = header(4)+payload(msg)
     while(sendto(timebomb, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
     if (debug) fprintf(stderr, ">request sent\n");
-    n = recvfrom(timebomb, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
+    n = recvfrom(timebomb, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
     if (debug) fprintf(stderr, ">received %d\n", n);
   }
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & ACK)); //file mismatch or no ack
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
     else printf("Sending packet retransmission SYN\n");
     n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
     while(sendto(timebomb, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
-    n = recvfrom(timebomb, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
+    n = recvfrom(timebomb, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
     if (debug) fprintf(stderr, ">received %d\n", n);
     duplicate = 1;
   }

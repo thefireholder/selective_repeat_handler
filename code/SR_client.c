@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
     n = formatMsg(fmsg, payload, n, 0, ACK); //fmsg = header(4)+payload(msg)
     while(sendto(timebomb, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
     if (debug) fprintf(stderr, ">request sent\n");
-    n = recvfrom(timebomb, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
+    n = recvfrom(timebomb, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
     if (debug) fprintf(stderr, ">received %d\n", n);
   }
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & ACK)); //file mismatch or no ack
@@ -226,13 +226,15 @@ int main(int argc, char *argv[])
   
 
   //send sync msg
-
+  int duplicate = 0;
   do {
-    printf("Sending packet SYN\n");
+    if (!duplicate) printf("Sending packet SYN\n");
+    else printf("Sending packet retransmission SYN\n");
     n = formatMsg(fmsg, payload, 0, 0, SYN); //fmsg = header(4)+payload(msg)
-    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
-    n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
+    while(sendto(timebomb, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<=0);
+    n = recvfrom(timebomb, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len);
     if (debug) fprintf(stderr, ">received %d\n", n);
+    duplicate = 1;
   }
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); // received msg
 
@@ -255,7 +257,7 @@ int main(int argc, char *argv[])
   recv_base = seq + n; //base
 
   //receive msg & send ACK
-  while(1) {
+  do {
 
     //receive msg
     if (debug) fprintf(stderr, ">waiting for msg\n");
@@ -281,7 +283,10 @@ int main(int argc, char *argv[])
 
     //duplicate check
     if (duplicate_check(seq_d, seq)) {
-      printf("Sending packet %d Retransmission\n",seq);
+      if (flags & FIN)
+	printf("Sending packet %d Retransmission FIN\n",seq);
+      else
+	printf("Sending packet %d Retransmission\n",seq);
     }
     else { //not duplicate
 
@@ -299,12 +304,22 @@ int main(int argc, char *argv[])
       }
 
       //send ack
-      printf("Sending packet %d\n",seq);
+      if (flags & FIN)
+	printf("Sending packet %d FIN\n",seq);
+      else
+	printf("Sending packet %d\n",seq);
     }
-    n = formatMsg(fmsg, payload, 0, seq, ACK);
+
+    n = formatMsg(fmsg, payload, 0, seq, (flags & FIN) ? FIN|ACK : ACK );
     while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
   }
-
+  while(!(flags & FIN));
+  
+  for(int i = 0; i < 999; i++)
+  {
+    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
+  } 
+  
   //end terminal
     
 }

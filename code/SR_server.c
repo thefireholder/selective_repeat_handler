@@ -339,8 +339,10 @@ int main(int argc, char * argv[])
         if(pack_payload < PACKETSIZE - HSIZE) {done = cur_sn;}
         //fprintf(stderr, "pack_payload: %d\n", pack_payload);
         char send_msg[HSIZE + pack_payload];
+        int is_fin = 0;
         if(done > 0) {
           formatMsg(send_msg, file_buf, pack_payload, cur_sn, FIN);
+          is_fin = 1;
         } else {
           formatMsg(send_msg, file_buf, pack_payload, cur_sn, 0);
         }
@@ -348,7 +350,11 @@ int main(int argc, char * argv[])
         while((sent = sendto(sockfd, send_msg, HSIZE+pack_payload, 0,(struct sockaddr *)&clientA, clientA_len)) < HSIZE+pack_payload) {
           //fprintf(stderr, "sent: %d\n", sent);
         }
-        printf("Sending packet %d %d\n", cur_sn, WND);
+        if(is_fin){
+          printf("Sending packet %d %d FIN\n", cur_sn, WND);
+        } else {
+          printf("Sending packet %d %d\n", cur_sn, WND);
+        }
         //fprintf(stderr, "sent seq: %d\n", seqnum);
         //change next seqnum
         times[wind] = now() + 500;

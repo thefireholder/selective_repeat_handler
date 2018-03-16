@@ -423,9 +423,9 @@ int main(int argc, char * argv[])
     int x;
     for(x=0;x<5;x++){
       if(times[x] != 0 && n >= times[x] && window[x] == 1){
-        printf("resending\n");
         while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length);
         times[x] = now() + 500;
+        printf("Sending packet %d 5120 Retransmission\n", cycle(base_seq, x));
       }
     }
 

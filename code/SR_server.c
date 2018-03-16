@@ -371,7 +371,7 @@ int main(int argc, char * argv[])
       }
       char client_ACK[HSIZE];
       //wait & recv
-      printf("waiting for ACK\n");
+      //printf("waiting for ACK\n");
       int rcved = recvfrom(sockfd, client_ACK, HSIZE, MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
       if(rcved >= 0) {
           
@@ -403,7 +403,7 @@ int main(int argc, char * argv[])
             // TODO: add save for timers
             if(i<5) {
               memmove(window, window+i, (5-i) * sizeof(int));
-              memmove(times, times+i, (5-i) * sizeof(int));
+              memmove(times, times+i, (5-i) * sizeof(unsigned long));
               memmove(ents, ents+i, (5-i) * sizeof(struct ent));
             }
             int j;
@@ -423,12 +423,16 @@ int main(int argc, char * argv[])
     unsigned long n = now();
     int x;
     for(x=0;x<5;x++){
+      //printf("%lu ", times[x]);
       if(times[x] != 0 && n >= times[x] && window[x] == 1){
-        while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length);
+        while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length){
+		printf("trying resend\n");
+	}
         times[x] = now() + 500;
         printf("Sending packet %d 5120 Retransmission\n", cycle(base_seq, x));
       }
     }
+    //printf("\n");
 
   }
 

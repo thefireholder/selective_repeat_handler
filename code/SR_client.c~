@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <string.h>
+
 #include <errno.h>
 
 #define MAXSEQ 30720
@@ -221,12 +221,7 @@ int main(int argc, char *argv[])
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & ACK)); //file mismatch or no ack
   
   //received response (404)
-  if(flags & FOF) {
-    printf("404 not found error\n"); 
-    for(int i = 0; i < 999; i++)
-	while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
-    exit(0);
-  }
+  if(flags & FOF) {printf("404 not found error\n"); exit(0);}
   else fd = open(WFILE, O_CREAT | O_RDWR, S_IRWXU);
   
 

@@ -253,8 +253,10 @@ int main(int argc, char *argv[])
   while (n < HSIZE || (n-4) != parseMsg(fmsg, payload, &flags, &seq) || !(flags & SYN)); // received msg
 
   //send sync ack
-  n = formatMsg(fmsg, payload, 0, seq, ACK);
-  while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
+  do {
+    n = formatMsg(fmsg, payload, 0, seq, ACK);
+    while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
+  } while( recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len) == -1);
 
   //seq and file transfer
   int seq_d[3][DUPSEC_LEN]; //sequence number stored for duplicate checking
@@ -270,12 +272,15 @@ int main(int argc, char *argv[])
   //deal with syn
   recv_base = seq + n; //base
 
+  int ignoreOnce = 1;
   //receive msg & send ACK
   do {
 
     //receive msg
     if (debug) fprintf(stderr, ">waiting for msg\n");
-    n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
+    //ignore once
+    if (ignoreOnce) ignoreOnce = 0;
+    else n = recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len);
 
     //check for error & parse msg
     if(n > BUFSIZE) reportError("Buffer overflow", 1);

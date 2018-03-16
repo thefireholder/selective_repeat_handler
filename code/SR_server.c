@@ -189,24 +189,19 @@ int main(int argc, char * argv[])
     int flags; int seq; 
 
     if (debug) fprintf(stderr, ">waiting for msg\n");
-    fprintf(stderr, "waiting\n");
     int n = recvfrom(sockfd, msg, BUFSIZE, 0,(struct sockaddr *) &clientA, &clientA_len); // 1 dgram only
 
-    fprintf(stderr, "got client msg\n");
     //check for error & parse msg
     if(n >= BUFSIZE) reportError("Buffer overflow", 1);
     if(n < HSIZE) reportError("recvfrom error", 2);
 
-    fprintf(stderr, "%d\n", n);
     int payloadSize = parseMsg(msg, payload, &flags, &seq, n);
     if (payloadSize < 0) {
-      fprintf(stderr, "Got nonmatching error\n");
       continue;
     }
     
     //read payload
     payload[payloadSize]=0;
-    printf("Got filename: %d, %s\n\n", payloadSize, payload);
     
     memcpy(filename, payload, payloadSize);
     break;
@@ -221,19 +216,13 @@ int main(int argc, char * argv[])
   char ACK_filename[4];
   if (access(payload, F_OK) != -1){
     formatMsg(ACK_filename, "", 0, 0, ACK);
-    printf("has file\n");
   } else {
-    printf("no file\n");
     formatMsg(ACK_filename, "", 0, 0, FOF | ACK | FIN);
     while(1) {
-      printf("sending 404 FIN\n");
       int sent;
       while((sent = sendto(sockfd, ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)){
-        printf("sent: %d\n", sent);
-        printf("%s\n", strerror(errno));
       }
       char client_finack[4];
-      printf("wait for recv\n");
       int rcved = recvfrom(sockfd, client_finack, HSIZE, MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
       if(rcved < HSIZE)
         continue;
@@ -264,25 +253,18 @@ int main(int argc, char * argv[])
 
   while(1) {
     int sent;
-    fprintf(stderr, "yo\n");
     while((sent = sendto(sockfd, ACK_filename, sizeof(union header), 0,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
-      fprintf(stderr, "sent: %d\n", sent);
     }
     //sleep(2 * RTO);
 
-    fprintf(stderr, "rcvfrom SYN\n");
     int rcved = recvfrom(sockfd, msg, sizeof(union header), MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
-    fprintf(stderr, "rcved this: %d\n", rcved);
 
     if (rcved < HSIZE) {
-      fprintf(stderr, "%d\n", rcved);
       continue;
     }
     int flags; int seq;
     int payloadSize = parseMsg(msg, payload, &flags, &seq, rcved);
-    fprintf(stderr, "flag: %d\n", flags);
     if(payloadSize >= 0 && (flags & SYN)) {
-      fprintf(stderr, "yay\n");
       break;
     }
   }
@@ -296,7 +278,6 @@ int main(int argc, char * argv[])
   while (1) {
     int sent;
     while((sent = sendto(sockfd, SYNack, sizeof(union header), seqnum,(struct sockaddr *)&clientA, clientA_len)) < sizeof(union header)) {
-      //fprintf(stderr, "synack sent: %d\n", sent);
     }
     //fprintf(stderr, "sent: %d\n", sent);
     //fprintf(stderr, "here synack\n");
@@ -306,7 +287,6 @@ int main(int argc, char * argv[])
     int rcved = recvfrom(sockfd, msg, sizeof(union header), MSG_DONTWAIT, (struct sockaddr *)&clientA, &clientA_len);
 
     if (rcved < HSIZE) {
-      fprintf(stderr, "rcved: %d\n", rcved);
       continue;
     }
     int flags; int seq;
@@ -325,7 +305,6 @@ int main(int argc, char * argv[])
   int window[5] = {0};
   // window timers here
   int base_seq = seqnum;
-  fprintf(stderr, "base_seq: %d\n", base_seq);
   int done = -1; //last seq
   int wind = 0;
   while (1) {
@@ -390,7 +369,6 @@ int main(int argc, char * argv[])
         // ignore the rest
         int got_index = in_range(base_seq, seq);
         if((flags & FIN) && got_index != -1) {
-          printf("Got FIN ACK from client\n");
         }
         if((flags & ACK) &&  got_index != -1){
           printf("Receiving packet %d\n", seq);
@@ -432,8 +410,7 @@ int main(int argc, char * argv[])
       //printf("%lu ", times[x]);
       if(times[x] != 0 && n >= times[x] && window[x] == 1){
         while(sendto(sockfd, ents[x].arr, ents[x].length, 0,(struct sockaddr *)&clientA, clientA_len) < ents[x].length){
-		printf("trying resend\n");
-	}
+	      }
         times[x] = now() + 500;
         printf("Sending packet %d 5120 Retransmission\n", cycle(base_seq, x));
       }

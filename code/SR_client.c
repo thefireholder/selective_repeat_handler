@@ -334,9 +334,12 @@ int main(int argc, char *argv[])
       while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
     }
   }
-  while(final_seq == -1 || is_w_empty(r_window));
+  while(final_seq == -1 || !is_w_empty(r_window));
   
-  formatMsg(fmsg, payload, 0, seq, FIN|ACK );
+  printf("Receiving packet %d\n",final_seq);
+  printf("Sending packet %d FIN\n",final_seq);
+  
+  formatMsg(fmsg, payload, 0, final_seq, FIN|ACK );
   for(int i = 0; i < 999; i++)
   {
     while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);

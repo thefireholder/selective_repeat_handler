@@ -163,7 +163,7 @@ void write_w(int fd, struct seq_msg wnd[], int* recv_base)
     //update recv_base and remove entry
     *recv_base = wnd[i].seq + wnd[i].size + HSIZE;
     if (*recv_base > MAXSEQ) *recv_base = 0;
-    fprintf(stderr,"new base:%d\n",*recv_base);
+    //fprintf(stderr,"new base:%d\n",*recv_base);
     wnd[i].seq = -1;
   }
 }
@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
   do {
     n = formatMsg(fmsg, payload, 0, seq, ACK);
     while(sendto(sockfd, fmsg, n, 0,(struct sockaddr *)&serverA,sizeof(serverA))<0);
-  } while( recvfrom(sockfd, fmsg, BUFSIZE, 0,(struct sockaddr *) &serverA, &servA_len) == -1);
+  } while( recvfrom(sockfd, fmsg, BUFSIZE, MSG_DONTWAIT,(struct sockaddr *) &serverA, &servA_len) == -1);
 
   //seq and file transfer
   int seq_d[3][DUPSEC_LEN]; //sequence number stored for duplicate checking

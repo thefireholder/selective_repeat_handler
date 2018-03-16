@@ -369,6 +369,11 @@ int main(int argc, char * argv[])
         // ignore the rest
         int got_index = in_range(base_seq, seq);
         if((flags & FIN) && got_index != -1) {
+          int i;
+          for(i=0;i<=got_index;i++){
+            printf("Receiving packet %d\n", cycle(base_seq, i));
+          }
+          exit(0);
         }
         if((flags & ACK) &&  got_index != -1){
           printf("Receiving packet %d\n", seq);

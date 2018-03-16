@@ -1,4 +1,18 @@
 
+group number: 
+student name: Sangjoon Lee 004749872
+	      William Lee
+work dividie:
+     Sangjoon: base UDP communication, header struct & parser, client
+     
+
+
+
+
+
+
+
+
 progress:
 	design.txt: general idea of hwo this SR UDP protocol would be designed
 		    + header layout

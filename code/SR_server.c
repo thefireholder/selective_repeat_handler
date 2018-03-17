@@ -365,44 +365,45 @@ int main(int argc, char * argv[])
         int flags; int seq;
         int payload_size = parseMsg(client_ACK, &client_payload, &flags, &seq, rcved);
         //fprintf(stderr, "flags: %d\n", flags);
-        if(payload_size < 0) reportError("not matching!\n", 2);
-        // ignore the rest
-        int got_index = in_range(base_seq, seq);
-        if((flags & FIN) && got_index != -1) {
-          int i;
-          for(i=0;i<=got_index;i++){
-            printf("Receiving packet %d\n", cycle(base_seq, i));
-          }
-          exit(0);
-        }
-        if((flags & ACK) &&  got_index != -1){
-          printf("Receiving packet %d\n", seq);
-          // int dist = (seq + MAXSEQ - base_seq) % MAXSEQ;
-          int mark_ind = got_index; //dist / (PACKETSIZE);
-          window[mark_ind] = 2;
-
-          times[mark_ind] = 0;
-
-          if(mark_ind == 0){
-            // move forward
+        if(payload_size >= 0) {
+          // ignore the rest
+          int got_index = in_range(base_seq, seq);
+          if((flags & FIN) && got_index != -1) {
             int i;
-            for(i=0;i<5;i++){
-              if(window[i]!=2) break;
+            for(i=0;i<=got_index;i++){
+              printf("Receiving packet %d\n", cycle(base_seq, i));
             }
-            // TODO: add save for timers
-            if(i<5) {
-              memmove(window, window+i, (5-i) * sizeof(int));
-              memmove(times, times+i, (5-i) * sizeof(unsigned long));
-              memmove(ents, ents+i, (5-i) * sizeof(struct ent));
+            exit(0);
+          }
+          if((flags & ACK) &&  got_index != -1){
+            printf("Receiving packet %d\n", seq);
+            // int dist = (seq + MAXSEQ - base_seq) % MAXSEQ;
+            int mark_ind = got_index; //dist / (PACKETSIZE);
+            window[mark_ind] = 2;
+
+            times[mark_ind] = 0;
+
+            if(mark_ind == 0){
+              // move forward
+              int i;
+              for(i=0;i<5;i++){
+                if(window[i]!=2) break;
+              }
+              // TODO: add save for timers
+              if(i<5) {
+                memmove(window, window+i, (5-i) * sizeof(int));
+                memmove(times, times+i, (5-i) * sizeof(unsigned long));
+                memmove(ents, ents+i, (5-i) * sizeof(struct ent));
+              }
+              int j;
+              for(j=5-i;j<5;j++){
+                window[j]=0;
+                times[j]=0;
+              }
+              wind = 0;
+              //base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;
+              base_seq = cycle(base_seq, i);
             }
-            int j;
-            for(j=5-i;j<5;j++){
-              window[j]=0;
-              times[j]=0;
-            }
-            wind = 0;
-            //base_seq = (base_seq + i*(PACKETSIZE)) % MAXSEQ;
-            base_seq = cycle(base_seq, i);
           }
         }
       }
